@@ -1,0 +1,60 @@
+name: Matrix Build with Artifacts (a1caa59)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # 3 parallel jobs (one per Python version)
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+
+    runs-on: ubuntu-latest
+
+    steps:
+      # --- required identifier step
+      - name: matrix-a1caa59
+        run: echo "Building for Python ${{ matrix.python-version }}"
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Generate build artifact (non-empty content)
+        id: gen
+        shell: bash
+        run: |
+          # Build a simple text artifact unique to each variant
+          variant="py${{ matrix.python-version }}"
+          variant_safe="${variant//./}"    # e.g., py39, py310, py311
+          file="output-${variant_safe}.txt"
+
+          echo "Variant        : ${variant}"            >  "${file}"
+          echo "Python version : ${{ matrix.python-version }}" >> "${file}"
+          echo "Runner         : $RUNNER_OS"           >> "${file}"
+          echo "Timestamp      : $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${file}"
+          python -c "import sys; print('Hello from', sys.version)" >> "${file}"
+
+          # Confirm file is non-empty
+          if [ ! -s "${file}" ]; then
+            echo "Artifact file is empty!"; exit 1
+          fi
+
+          # Pass values to later steps
+          echo "artifact_name=build-a1caa59-${variant_safe}" >> $GITHUB_OUTPUT
+          echo "artifact_file=${file}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Prefix required: build-a1caa59-<variant>
+          name: ${{ steps.gen.outputs.artifact_name }}
+          path: ${{ steps.gen.outputs.artifact_file }}
+          if-no-files-found: error
